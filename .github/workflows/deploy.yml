@@ -1,0 +1,67 @@
+# Azure DevOps Pipeline for Building and Deploying a Spring Boot Application
+
+name: Build and deploy JAR app to Azure Web App - sjbit-demo-app-service
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read # Required for actions/checkout
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java version
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'microsoft'
+
+      - name: Build with Maven
+        run: mvn clean package
+        working-directory: demo  # Ensures Maven runs inside the 'demo' directory
+
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: java-app
+          path: target/sjbit-demo-app.jar  # Uploads the specific JAR file
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    permissions:
+      id-token: write # Required for requesting the JWT
+      contents: read # Required for actions/checkout
+
+    steps:
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: java-app
+          path: .
+
+      - name: Login to Azure
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_A82C0D7EDEBF47BABC8D778D03B5232F }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_4F0B177E6FB24158AB21DE6A88CE21CE }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_0C5C87CB334A443B9BDB628D4029B69B }}
+
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'sait-demo'
+          slot-name: 'Production'
+          package: 'sjbit-demo-app.jar'  # Deploying the specific JAR file
